@@ -53,7 +53,7 @@ public:
 		for (i = 0; i < self_inNode; i++)
 			self_in[i] = in[i];
 		delete[] in;
-		float *temp = new float[self_outNode];
+		temp = new float[self_outNode];
 		for (i = 0; i < self_outNode; i++) {
 			temp[i] = 0;
 			for (j = 0; j < self_inNode; j++) {
@@ -425,7 +425,7 @@ public:
 
 	}
 
-	BatchNormalization(int size, int gamma, int beta) 
+	BatchNormalization(int size, float gamma, float beta) 
 	{
 		temp = new float[size];
 		Size = size;
@@ -449,7 +449,7 @@ public:
 		for (int i = 0; i < Size; i++) dout[i] *= Gamma;
 		for (int i = 0; i < Size; i++) dstd += -(dout[i] * temp[i]) / (Std*Std);
 
-		dvar = 0.5*dstd / Std;
+		dvar = (float)0.5*dstd / Std;
 		for (int i = 0; i < Size; i++) dout[i] = (dout[i]/Std) + 2 * temp[i] * dvar;
 		for (int i = 0; i < Size; i++) dmean += dout[i];
 		for (int i = 0; i < Size; i++) dout[i]=(dout[i]-dmean);
@@ -580,17 +580,18 @@ public:
 	}
 	float* predict(float *x)
 	{
+		float *x_temp;
 		for (int i = 0; i < self_hidden_num; i++)
 		{
 			x = Batch[i].forward(x);
 			x = Conv[i].Forward(x);
 			x = Pool[i].Forward(x);
 			relu[i].forward(x);
+			x_temp = x;
 		}
-		x = Batch[self_hidden_num].forward(x);
-		x=affine.forward(x);
-
-		return x;
+		x_temp = Batch[self_hidden_num].forward(x_temp);
+		x_temp=affine.forward(x_temp);
+		return x_temp;
 	}
 	float loss(float *x, unsigned char *t, int *acc)
 	{
@@ -624,12 +625,14 @@ public:
 		x = Softmax_Loss.backward(Loss);
 		x = affine.backward(x);
 		x = Batch[self_hidden_num].backward(x);
+		float *x_temp = x;
 		for (int i = self_hidden_num - 1; i >= 0; i--)
 		{
 			relu[i].backward(x);
 			x = Pool[i].backward(x);
 			x = Conv[i].backward(x);
 			x = Batch[i].backward(x);
+			x_temp = x;
 		}
 		free(x);
 	}
@@ -644,13 +647,13 @@ public:
 //Trainer Start
 class Trainer {
 public:
-	float self_lr = LR; 
-	int list[3] = { 1, 3, 5 };
+	float self_lr = LR;
+	int list[CONV_NUM] = { 10 };
 	int chk = 0;
 	MultilayerNet network;
 	SGD sgd;
 	Trainer() {
-		MultilayerNet NETWORK(IMG_HEIGHT*IMG_WIDTH*RGB, list, 3, CLASSIFY);
+		MultilayerNet NETWORK(IMG_HEIGHT*IMG_WIDTH*RGB, list, CONV_NUM, CLASSIFY);
 		network = NETWORK;
 		SGD SGD(self_lr);
 		sgd = SGD;
@@ -674,7 +677,7 @@ public:
 		sgd.update(network.weight_affine, network.affine.dW, w*h*j*CLASSIFY);
 		sgd.update(network.bias_affine, network.affine.db, CLASSIFY);
 		chk++;
-		if (chk % 500 == 0)
+		if (chk % MINIBATCH_SIZE == 0)
 		{
 			printf("Accuracy : %.1f%%\n", (float)network.Accuracy / chk * 100);
 			network.Accuracy = 0;
@@ -713,14 +716,14 @@ public:
 class Tester
 {
 public:
-	int list[3] = { 1, 5, 10 };
+	int list[CONV_NUM] = { 10 };
 	int chk = 0;
 	int acc = 0;
 	int pre_label;
 	MultilayerNet network;
 	Tester() 
 	{
-		MultilayerNet NETWORK(IMG_HEIGHT*IMG_WIDTH*RGB, list, 3, CLASSIFY);
+		MultilayerNet NETWORK(IMG_HEIGHT*IMG_WIDTH*RGB, list, CONV_NUM, CLASSIFY);
 		network = NETWORK;
 	}
 	void test(float *x, unsigned char label)
@@ -731,7 +734,7 @@ public:
 		chk++;
 		pre_label=arg_max(x, CLASSIFY);
 		if (pre_label == label) acc++;
-		if (chk == 500)
+		if (chk == MINIBATCH_SIZE)
 		{
 			printf("Accuracy: %.1f%%\n", (float)acc / chk * 100);
 			chk = 0;
