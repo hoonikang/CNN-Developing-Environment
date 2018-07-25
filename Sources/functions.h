@@ -7,8 +7,10 @@
 #define PAD 1
 #define POOL 2
 #define CLASSIFY 10
-#define BATCH_SIZE 5000
-#define LR 0.001
+#define MINIBATCH_SIZE 5000
+#define LR 0.0000000001
+#define CONV_NUM 1
+
 #include <math.h>
 
 
